@@ -1,5 +1,9 @@
 ## a simple script to automatically kill greedy processes
 
+Tania is a python script designed to kill processes that should not be there 
+on a computing cluster's frontend, generally because users forgot (or do not 
+know how to) launch their program into a proper job.
+
 ### Installation
 
 Copy `tania.conf` and `tania_targets.json` to an appropriate location, for
