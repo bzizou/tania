@@ -1,0 +1,33 @@
+[
+ 	{
+		"type": "ally",
+		"cmd": ".*",
+		"user": "^root$|^postgres$|^apache2$|^avahi$|^messagebus$|^polkituser$|^systemd.*|^rtkit$|^openldap$|^oar$|^bind$|^nut$|^www-data$|^flexlm$|^ntp$|^statd$|^oident$|^nslcd$|^nscd$|^haldaemon$|^munge$|^dbus$|^rpc$"
+	},
+	{
+		"type": "ally",
+		"cmd": "^.*sshd$|.*chromium.*|.*gnome.*|.*Xwayland.*|.*pulseaudio.*|^.*thunderbird$|terminator|dbus-daemon",
+		"user": "bzizou"
+	},
+	{
+		"type": "target",
+		"cmd": "^.*scp$|^.*rsync$",
+		"user": "bzizou",
+		"time_limit_warn": 300,
+		"time_limit": 900
+	},
+	{
+		"type": "target",
+		"cmd": "^.*yes$",
+		"user": "bzizou",
+		"time_limit_warn": 5,
+		"time_limit": 20
+	},
+	{
+		"type": "target",
+		"cmd": ".*",
+		"user": ".*",
+		"time_limit": 300
+	}
+]
+
