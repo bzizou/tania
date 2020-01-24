@@ -3,6 +3,8 @@
 Tania is a python script designed to kill processes that should not be there 
 on a computing cluster's frontend, generally because users forgot (or do not 
 know how to) launch their program into a proper job.
+You can customize which processes should be monitored (targets) and which should
+be whitelisted (allies), based on their name, owner and cputime. 
 
 ### Installation
 
