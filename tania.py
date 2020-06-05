@@ -92,28 +92,30 @@ def send_mail(mail_template,login,command,pid,cputime,limit) :
     dest = task.stdout.read().decode().strip('\n').strip(' ')
     dest_err = task.stderr.read().decode().strip('\n').strip(' ')
     assert task.wait() == 0
+    mail = config.get('mail',mail_template)
+    mail_from = config.get('mail','smtp_from')
+    mail_cc = config.get('mail','smtp_cc')
+    subject = config.get('mail','subject')
+    mail = "Subject: "+subject+"\n\n"+mail
+    mail = "From: "+mail_from+"\n"+mail
     if dest != "" :
-        mail = config.get('mail',mail_template)
-        mail_from = config.get('mail','smtp_from')
-        mail_cc = config.get('mail','smtp_cc')
-        subject = config.get('mail','subject')
-        mail = "Subject: "+subject+"\n\n"+mail
-        mail = "From: "+mail_from+"\n"+mail
         mail = "Cc: "+mail_cc+"\n"+mail
         mail = "To: "+dest+"\n"+mail
-        mail = mail.replace("[pid]",str(pid))
-        mail = mail.replace("[cputime]",str(cputime))
-        mail = mail.replace("[command]",str(command))
-        mail = mail.replace("[limit]",str(limit))
-        server = smtplib.SMTP()
-        server.connect(config.get('mail','smtp_server'))
         dests = [dest] + [mail_cc]
-        server.sendmail(mail_from, dests, mail)
-    else :
+    else:
         print("Could not get the e-mail address of",login, file=sys.stderr)
         if options.verbose :
             print("Cmd:",cmd, file=sys.stderr)
-            print("Error:",dest_err, file=sys.stderr)
+            print("Warning:",dest_err, file=sys.stderr)
+        mail = "To: "+mail_cc+"\n"+mail
+        dests = [mail_cc]
+    mail = mail.replace("[pid]",str(pid))
+    mail = mail.replace("[cputime]",str(cputime))
+    mail = mail.replace("[command]",str(command))
+    mail = mail.replace("[limit]",str(limit))
+    server = smtplib.SMTP()
+    server.connect(config.get('mail','smtp_server'))
+    server.sendmail(mail_from, dests, mail)
 
 # Main
 processes = get_top_processes(PS_CMD)
@@ -147,10 +149,10 @@ try:
                     else :
                         cputime=sum(x * int(t) for x, t in zip([3600, 60, 1], p_time.split(":")))
                     if user and cmd :
-
+        
                         # Compute a hash filename that will be used to keep track of already sent mail
                         file_hash=hashlib.md5((p_user+p_cmd+p_pid).encode()).hexdigest()
-
+        
                         # Does the cpu time exceeds the warn limit?
                         if 'time_limit_warn' in target and cputime>=target['time_limit_warn'] and cputime<target['time_limit']:
                             if options.verbose :
@@ -161,7 +163,7 @@ try:
                             if options.do and options.send_mail and not path.exists(warn_file):
                                 send_mail('warn_mail',p_user,p_cmd,p_pid,cputime,target['time_limit'])
                                 pathlib.Path(warn_file).touch()
-
+        
                         # Does the cpu time exceeds the limit?
                         if cputime>target['time_limit']:
                             if options.do :
