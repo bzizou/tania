@@ -7,6 +7,9 @@
 # be there on a computing cluster's frontend, generally because users
 # forgot (or do not know how to) launch their program into a proper job.
 #
+# TODO make stateful to kill a process if already identified and still runs
+# despite a first term
+# store pid, uid, timestamp, process, status in pickle and load on re-run
 
 import json
 import sys,os,time,re
