@@ -59,21 +59,37 @@ def get_top_processes(cmd) :
     """
         Get the list of running processes as a list of dict
     """
-    task = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE)
+    run_string = cmd
+    if cmd == "BUILT-IN":
+      run_string = "ps -Ao 'pid,time,user:100,command:100000' --sort=-cputime |head -200"
+    task = subprocess.Popen(run_string, shell=True, stdout=subprocess.PIPE)
     data = task.stdout.read()
     assert task.wait() == 0
     data = data.decode().split('\n')
     processes=[]
-    for string in data:
+    if cmd == "BUILT-IN":
+      for string in data:
+        string=string.lstrip()
+        p = re.split(r"[\s\t]+", string, 3)
+        p = [x.strip(' ') for x in p]
+        if len(p) == 4 and p[1] != "TIME":
+          processes.append({
+                'pid' : p[0],
+                'cputime' : p[1],
+                'user' : p[2],
+                'cmd' : p[3]
+          })
+    else:
+      for string in data:
         p = string.split(':::')
         p = [x.strip(' ') for x in p]
         if len(p) == 4 and p[2] != "TIME":
-            processes.append({
+          processes.append({
                 'cmd' : p[0],
-                'user' : p[3],
                 'pid' : p[1],
-                'cputime' : p[2]
-            })
+                'cputime' : p[2],
+                'user' : p[3]
+          })
     return processes
 
 def load_targets(targets_file) :
