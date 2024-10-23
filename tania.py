@@ -39,6 +39,7 @@ else:
 # Get some variables from the configuration file
 TARGETS_FILE=config.get('general','targets_file')
 PS_CMD=config.get('general','ps_cmd',raw=True)
+RSS_PS_CMD=config.get('general','rss_ps_cmd',raw=True)
 TMPDIR=config.get('general','tmp_dir')+"/tania"
 
 # Options parsing
@@ -57,7 +58,7 @@ parser.add_option("-m", "--mail",
 
 def get_top_processes(cmd) :
     """
-        Get the list of running processes as a list of dict
+        Get the list of running processes as a list of dict (cputime)
     """
     run_string = cmd
     if cmd == "BUILT-IN":
@@ -91,6 +92,32 @@ def get_top_processes(cmd) :
                 'user' : p[3]
           })
     return processes
+
+def get_hungry_processes(cmd) :
+    """
+        Get the list of running processes as a list of dict (rss)
+    """
+    run_string = cmd
+    if cmd == "BUILT-IN":
+      run_string = "ps -Ao 'pid,rss,user:100,command:100000' --sort=-rss |head -200"
+    task = subprocess.Popen(run_string, shell=True, stdout=subprocess.PIPE)
+    data = task.stdout.read()
+    assert task.wait() == 0
+    data = data.decode().split('\n')
+    processes=[]
+    for string in data:
+      string=string.lstrip()
+      p = re.split(r"[\s\t]+", string, 3)
+      p = [x.strip(' ') for x in p]
+      if len(p) == 4 and p[1] != "RSS":
+        processes.append({
+              'pid' : p[0],
+              'rss' : int(p[1]),
+              'user' : p[2],
+              'cmd' : p[3]
+        })
+    return processes
+
 
 def load_targets(targets_file) :
     """
@@ -135,6 +162,8 @@ def send_mail(mail_template,login,command,pid,cputime,limit) :
 
 # Main
 processes = get_top_processes(PS_CMD)
+rss_processes = get_hungry_processes(RSS_PS_CMD)
+all_processes = processes + rss_processes
 targets = load_targets(TARGETS_FILE)
 pathlib.Path(TMPDIR).mkdir(parents=True, exist_ok=True)
 
@@ -142,11 +171,16 @@ lock = FileLock(TMPDIR+"/lock", timeout=10)
 
 try:
     with lock.acquire():
-        for process in processes:
+        for process in all_processes:
             p_pid=process['pid']
             p_cmd=process['cmd']
             p_user=process['user']
-            p_time=process['cputime']
+            if 'cputime' in process:
+              p_time=process['cputime']
+              p_rss=0
+            else:
+              p_rss=process['rss']
+              p_time="0:0:0"
             for target in targets:
                 # Does the user match?
                 user=re.search(target['user'],p_user)
@@ -197,6 +231,26 @@ try:
                             else :
                                 if options.verbose :
                                     print('We should kill',p_pid, "(",p_cmd,") of",p_user,"with cputime",cputime, "(limit ",target['time_limit'],")")
+                                else :
+                                    print('We should kill process',p_pid)
+
+                        # Does the memory exceeds the limit?
+                        if p_rss>target['rss_limit']:
+                            if options.do :
+                                if options.verbose:
+                                    print('Shooting down',p_pid, "(",p_cmd,") of",p_user,"with memory",p_rss, "(limit ",target['rss_limit'],")")
+                                # Shoot down
+                                if not options.verbose : print('Shooting down process',p_pid)
+                                subprocess.run(["kill", p_pid])
+                                # Send e-mail
+                                kill_file=TMPDIR+"/kill_"+file_hash
+                                if options.send_mail and not path.exists(kill_file) :
+                                    send_mail('rss_kill_mail',p_user,p_cmd,p_pid,p_rss,target['rss_limit'])
+                                    pathlib.Path(kill_file).touch()
+                                    print()
+                            else :
+                                if options.verbose :
+                                    print('We should kill',p_pid, "(",p_cmd,") of",p_user,"with memory",p_rss, "(limit ",target['rss_limit'],")")
                                 else :
                                     print('We should kill process',p_pid)
                         break

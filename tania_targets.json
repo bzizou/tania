@@ -27,7 +27,8 @@
 		"type": "target",
 		"cmd": ".*",
 		"user": ".*",
-		"time_limit": 300
+		"time_limit": 300,
+		"rss_limit": 1000000
 	}
 ]
 
