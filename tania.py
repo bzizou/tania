@@ -126,7 +126,7 @@ def load_targets(targets_file) :
     with open(targets_file) as json_file:
         return json.load(json_file)
 
-def send_mail(mail_template,login,command,pid,cputime,limit) :
+def send_mail(mail_template,login,command,pid,value,limit) :
     """
         Send an email to the owner of the process
     """
@@ -153,7 +153,8 @@ def send_mail(mail_template,login,command,pid,cputime,limit) :
         mail = "To: "+mail_cc+"\n"+mail
         dests = [mail_cc]
     mail = mail.replace("[pid]",str(pid))
-    mail = mail.replace("[cputime]",str(cputime))
+    mail = mail.replace("[cputime]",str(value))
+    mail = mail.replace("[rss]",str(value))
     mail = mail.replace("[command]",str(command))
     mail = mail.replace("[limit]",str(limit))
     server = smtplib.SMTP()
