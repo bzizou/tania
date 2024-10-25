@@ -1,10 +1,11 @@
-## A simple script to automatically kill greedy processes
+## A greedy processes killer
 
 Tania is a python script designed to kill processes that should not be there 
 on a computing cluster's frontend, generally because users forgot (or do not 
 know how to) launch their program into a proper job.
 You can customize which processes should be monitored (targets) and which should
-be whitelisted (allies), based on their name, owner, cputime and memory size (rss). 
+be whitelisted (allies), based on their name, owner, cputime and memory size (rss).
+Tania is designed to be run as a cron job.
 
 ### Installation
 
@@ -76,3 +77,6 @@ Finally, Tania is meant to be run frequently from cron. Here's an example cron j
 */2 * * * * root tania --do --mail |grep -v Warning
 ```
 
+### Why this name "Tania" ?
+
+Check https://en.wikipedia.org/wiki/Tania_Chernova
