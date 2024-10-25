@@ -68,3 +68,11 @@ Shooting down process 1670118
 
 The `--mail` option will send an e-mail to the owner of the killed process using the mail templates
 from the config file.
+
+Finally, Tania is meant to be run frequently from cron. Here's an example cron job configuration:
+
+```
+# cat /etc/cron.d/tania                                  
+*/2 * * * * root tania --do --mail |grep -v Warning
+```
+
