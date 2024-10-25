@@ -165,98 +165,102 @@ def send_mail(mail_template,login,command,pid,value,limit) :
     server.sendmail(mail_from, dests, mail)
 
 # Main
-processes = get_top_processes(PS_CMD)
-rss_processes = get_hungry_processes(RSS_PS_CMD)
-all_processes = processes + rss_processes
-targets = load_targets(TARGETS_FILE)
-pathlib.Path(TMPDIR).mkdir(parents=True, exist_ok=True)
+def main():
+  processes = get_top_processes(PS_CMD)
+  rss_processes = get_hungry_processes(RSS_PS_CMD)
+  all_processes = processes + rss_processes
+  targets = load_targets(TARGETS_FILE)
+  pathlib.Path(TMPDIR).mkdir(parents=True, exist_ok=True)
+  
+  lock = FileLock(TMPDIR+"/lock", timeout=10)
+  
+  try:
+      with lock.acquire():
+          for process in all_processes:
+              p_pid=process['pid']
+              p_cmd=process['cmd']
+              p_user=process['user']
+              if 'cputime' in process:
+                p_time=process['cputime']
+                p_rss=0
+              else:
+                p_rss=process['rss']
+                p_time="0:0:0"
+              for target in targets:
+                  # Does the user match?
+                  user=re.search(target['user'],p_user)
+                  # Does the cmd match?
+                  cmd=re.search(target['cmd'],p_cmd)
+                  # Is it an ally?
+                  if user and cmd and target['type']=='ally':
+                      break
+                  # Is it a target?
+                  if target['type']=='target':
+                      # Convert cputime into seconds
+                      m=re.search("(.*)-(.*:.*:.*)",p_time)
+                      if m :
+                          cputime=86400*int(m.group(1))
+                          cputime+=sum(x * int(t) for x, t in zip([3600, 60, 1], m.group(2).split(":")))
+                      else :
+                          cputime=sum(x * int(t) for x, t in zip([3600, 60, 1], p_time.split(":")))
+                      if user and cmd :
+          
+                          # Compute a hash filename that will be used to keep track of already sent mail
+                          file_hash=hashlib.md5((p_user+p_cmd+p_pid).encode()).hexdigest()
+          
+                          # Does the cpu time exceeds the warn limit?
+                          if 'time_limit_warn' in target and cputime>=target['time_limit_warn'] and cputime<target['time_limit']:
+                              if options.verbose :
+                                  print('Process',p_pid, "(",p_cmd,") of",p_user,"used cputime",cputime, "(limit ",target['time_limit'],")")
+                              else :
+                                  print('Warning:',p_pid,"is in the viewfinder")
+                              warn_file=TMPDIR+"/warn_"+file_hash
+                              if options.do and options.send_mail and not path.exists(warn_file):
+                                  send_mail('warn_mail',p_user,p_cmd,p_pid,cputime,target['time_limit'])
+                                  pathlib.Path(warn_file).touch()
+          
+                          # Does the cpu time exceeds the limit?
+                          if cputime>target['time_limit']:
+                              if options.do :
+                                  if options.verbose:
+                                      print('Shooting down',p_pid, "(",p_cmd,") of",p_user,"with cputime",cputime, "(limit ",target['time_limit'],")")
+                                  # Shoot down
+                                  if not options.verbose : print('Shooting down process',p_pid)
+                                  subprocess.run(["kill", p_pid])
+                                  # Send e-mail
+                                  kill_file=TMPDIR+"/kill_"+file_hash
+                                  if options.send_mail and not path.exists(kill_file) :
+                                      send_mail('kill_mail',p_user,p_cmd,p_pid,cputime,target['time_limit'])
+                                      pathlib.Path(kill_file).touch()
+                                      print()
+                              else :
+                                  if options.verbose :
+                                      print('We should kill',p_pid, "(",p_cmd,") of",p_user,"with cputime",cputime, "(limit ",target['time_limit'],")")
+                                  else :
+                                      print('We should kill process',p_pid)
+  
+                          # Does the memory exceeds the limit?
+                          if 'rss_limit' in target and p_rss>target['rss_limit']:
+                              if options.do :
+                                  if options.verbose:
+                                      print('Shooting down',p_pid, "(",p_cmd,") of",p_user,"with memory",p_rss, "(limit ",target['rss_limit'],")")
+                                  # Shoot down
+                                  if not options.verbose : print('Shooting down process',p_pid)
+                                  subprocess.run(["kill", p_pid])
+                                  # Send e-mail
+                                  kill_file=TMPDIR+"/kill_"+file_hash
+                                  if options.send_mail and not path.exists(kill_file) :
+                                      send_mail('rss_kill_mail',p_user,p_cmd,p_pid,p_rss,target['rss_limit'])
+                                      pathlib.Path(kill_file).touch()
+                                      print()
+                              else :
+                                  if options.verbose :
+                                      print('We should kill',p_pid, "(",p_cmd,") of",p_user,"with memory",p_rss, "(limit ",target['rss_limit'],")")
+                                  else :
+                                      print('We should kill process',p_pid)
+                          break
+  except Timeout:
+      print("Another instance of Tania currently holds the lock.")
 
-lock = FileLock(TMPDIR+"/lock", timeout=10)
-
-try:
-    with lock.acquire():
-        for process in all_processes:
-            p_pid=process['pid']
-            p_cmd=process['cmd']
-            p_user=process['user']
-            if 'cputime' in process:
-              p_time=process['cputime']
-              p_rss=0
-            else:
-              p_rss=process['rss']
-              p_time="0:0:0"
-            for target in targets:
-                # Does the user match?
-                user=re.search(target['user'],p_user)
-                # Does the cmd match?
-                cmd=re.search(target['cmd'],p_cmd)
-                # Is it an ally?
-                if user and cmd and target['type']=='ally':
-                    break
-                # Is it a target?
-                if target['type']=='target':
-                    # Convert cputime into seconds
-                    m=re.search("(.*)-(.*:.*:.*)",p_time)
-                    if m :
-                        cputime=86400*int(m.group(1))
-                        cputime+=sum(x * int(t) for x, t in zip([3600, 60, 1], m.group(2).split(":")))
-                    else :
-                        cputime=sum(x * int(t) for x, t in zip([3600, 60, 1], p_time.split(":")))
-                    if user and cmd :
-        
-                        # Compute a hash filename that will be used to keep track of already sent mail
-                        file_hash=hashlib.md5((p_user+p_cmd+p_pid).encode()).hexdigest()
-        
-                        # Does the cpu time exceeds the warn limit?
-                        if 'time_limit_warn' in target and cputime>=target['time_limit_warn'] and cputime<target['time_limit']:
-                            if options.verbose :
-                                print('Process',p_pid, "(",p_cmd,") of",p_user,"used cputime",cputime, "(limit ",target['time_limit'],")")
-                            else :
-                                print('Warning:',p_pid,"is in the viewfinder")
-                            warn_file=TMPDIR+"/warn_"+file_hash
-                            if options.do and options.send_mail and not path.exists(warn_file):
-                                send_mail('warn_mail',p_user,p_cmd,p_pid,cputime,target['time_limit'])
-                                pathlib.Path(warn_file).touch()
-        
-                        # Does the cpu time exceeds the limit?
-                        if cputime>target['time_limit']:
-                            if options.do :
-                                if options.verbose:
-                                    print('Shooting down',p_pid, "(",p_cmd,") of",p_user,"with cputime",cputime, "(limit ",target['time_limit'],")")
-                                # Shoot down
-                                if not options.verbose : print('Shooting down process',p_pid)
-                                subprocess.run(["kill", p_pid])
-                                # Send e-mail
-                                kill_file=TMPDIR+"/kill_"+file_hash
-                                if options.send_mail and not path.exists(kill_file) :
-                                    send_mail('kill_mail',p_user,p_cmd,p_pid,cputime,target['time_limit'])
-                                    pathlib.Path(kill_file).touch()
-                                    print()
-                            else :
-                                if options.verbose :
-                                    print('We should kill',p_pid, "(",p_cmd,") of",p_user,"with cputime",cputime, "(limit ",target['time_limit'],")")
-                                else :
-                                    print('We should kill process',p_pid)
-
-                        # Does the memory exceeds the limit?
-                        if 'rss_limit' in target and p_rss>target['rss_limit']:
-                            if options.do :
-                                if options.verbose:
-                                    print('Shooting down',p_pid, "(",p_cmd,") of",p_user,"with memory",p_rss, "(limit ",target['rss_limit'],")")
-                                # Shoot down
-                                if not options.verbose : print('Shooting down process',p_pid)
-                                subprocess.run(["kill", p_pid])
-                                # Send e-mail
-                                kill_file=TMPDIR+"/kill_"+file_hash
-                                if options.send_mail and not path.exists(kill_file) :
-                                    send_mail('rss_kill_mail',p_user,p_cmd,p_pid,p_rss,target['rss_limit'])
-                                    pathlib.Path(kill_file).touch()
-                                    print()
-                            else :
-                                if options.verbose :
-                                    print('We should kill',p_pid, "(",p_cmd,") of",p_user,"with memory",p_rss, "(limit ",target['rss_limit'],")")
-                                else :
-                                    print('We should kill process',p_pid)
-                        break
-except Timeout:
-    print("Another instance of Tania currently holds the lock.")
+if __name__ == '__main__':
+        main()
