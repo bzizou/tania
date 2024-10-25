@@ -235,7 +235,7 @@ try:
                                     print('We should kill process',p_pid)
 
                         # Does the memory exceeds the limit?
-                        if p_rss>target['rss_limit']:
+                        if 'rss_limit' in target and p_rss>target['rss_limit']:
                             if options.do :
                                 if options.verbose:
                                     print('Shooting down',p_pid, "(",p_cmd,") of",p_user,"with memory",p_rss, "(limit ",target['rss_limit'],")")
