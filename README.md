@@ -74,7 +74,7 @@ Finally, Tania is meant to be run frequently from cron. Here's an example cron j
 
 ```
 # cat /etc/cron.d/tania                                  
-*/2 * * * * root tania --do --mail |grep -v Warning
+*/2 * * * * root /usr/local/bin/tania --do --mail |grep -v Warning
 ```
 
 ### Why this name "Tania" ?
